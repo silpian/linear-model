@@ -4,6 +4,8 @@ We implement LASSO, OLS, and ridge regression using (cyclical) coordinate descen
 
 ## Resources
 * [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
+* [Coordinate Descent Soft-Thresholding Update Operator for Lasso](https://stats.stackexchange.com/questions/123672/coordinate-descent-soft-thresholding-update-operator-for-lasso)
+* [Ridge Regression](https://www.statlect.com/fundamentals-of-statistics/ridge-regression)
 
 ## Setup/Dependencies
 ```
