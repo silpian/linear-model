@@ -19,4 +19,4 @@ lasso.fit_by_coordinate_descent(y, X)
 lasso.predict(new_X)
 ```
 
-For more examples of use cases and derivations of the update equations, see [Linear Regression Derivation](Linear Regression Derivations.ipynb)
+For more examples of use cases and derivations of the update equations, see [Linear Regression Derivations](https://github.com/silpian/linear-model/blob/master/Linear%20Regression%20Derivations.ipynb)
