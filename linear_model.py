@@ -38,13 +38,34 @@ class LinearModel:
         
         Return the mean squared error.
         """
-        M, p = X.shape
 
+        M, p = X.shape
         if self.standardize:
             y = (y - np.mean(y, axis=0))/np.std(y, axis=0)
         
         return (1/M)*np.sum((y - self.predict(X))**2)
 
+    def r_squared(self, y, X):
+        """
+        y - M x 1 output vector
+        X - M x p input matrix
+        
+        Assuming self.beta_hat has been fit on training data, 
+        predict a new y vector given a new input matrix X using y = X * self.beta_hat.
+        Then compute and return the R squared of the linear regression
+        """
+        return (1 - np.var(y - self.predict(X))/np.var(y))
+    def adjusted_r_squared(self, y, X):
+        """
+        y - M x 1 output vector
+        X - M x p input matrix
+        
+        Assuming self.beta_hat has been fit on training data, 
+        predict a new y vector given a new input matrix X using y = X * self.beta_hat.
+        Then compute and return the adjusted R squared of the linear regression
+        """
+        M, p = X.shape
+        return (1 - (M-1)/(M-p) * np.var(y - self.predict(X))/np.var(y))
     def standardize_variables(self, y, X):
         """
         y - N x 1 output vector
@@ -80,6 +101,8 @@ class OLS(LinearModel):
             y, X = super().standardize_variables(y, X)
 
         self.beta_hat = np.matmul(np.linalg.inv(np.matmul(X.T, X)), np.matmul(X.T, y))
+
+
 
     def fit_by_gradient_descent(self, y, X, learning_rate=0.00001, iter=100):
         """
@@ -206,7 +229,7 @@ class Lasso(LinearModel):
 
         self.beta_hat = beta_hat
 
-    def choose_reg_param_for_lasso(self, y, X, grid_size=30):
+    def choose_reg_param_for_lasso(self, y, X, max_is_OLS_size=True, grid_size=30):
         """
         y - N x 1 output vector
         X - N x p input matrix
@@ -220,7 +243,12 @@ class Lasso(LinearModel):
         
         # choose a grid of possible values for lambda
         min_grid = 0
-        max_grid = (1/self.N)*np.max(np.matmul(y.T, X))
+        if max_is_OLS_size:
+            ols = OLS()
+            ols.fit_by_closed_form(y, X)
+            max_grid = np.sum(np.abs(ols.get_params()))
+        else:
+            max_grid = (1/self.N)*np.max(np.matmul(y.T, X))
         print(f"Regularization parameter chosen among {grid_size} evenly spaced values from 0 to {max_grid}")
         
         grid = np.linspace(min_grid, max_grid, grid_size)
