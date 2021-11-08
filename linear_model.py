@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from utils import soft_thresholding
 
 class LinearModel:
@@ -17,8 +18,10 @@ class LinearModel:
 
         if self.standardize:
             X = (X - self.sample_X_mean)/self.sample_X_std
-
-        return np.matmul(X, self.beta_hat)
+            return self.sample_y_mean + self.sample_y_std*np.matmul(X, self.beta_hat)
+        
+        else:
+            return np.matmul(X, self.beta_hat)
 
     def get_params(self):
         """
@@ -40,8 +43,6 @@ class LinearModel:
         """
 
         M, p = X.shape
-        if self.standardize:
-            y = (y - np.mean(y, axis=0))/np.std(y, axis=0)
         
         return (1/M)*np.sum((y - self.predict(X))**2)
 
@@ -66,7 +67,7 @@ class LinearModel:
         """
         M, p = X.shape
         return (1 - (M-1)/(M-p) * np.var(y - self.predict(X))/np.var(y))
-    def standardize_variables(self, y, X):
+    def standardize_variables(self, y, X, set_params=True):
         """
         y - N x 1 output vector
         X - N x p input matrix
@@ -75,11 +76,12 @@ class LinearModel:
         y - where each value has been standardized wrt to the vector's sample variance sample mean
         X - where each column of X has been standardized with respect to its sample variance and sample mean
         """
+        if set_params:
+            self.sample_y_mean = np.mean(y, axis=0)
+            self.sample_X_mean = np.mean(X, axis=0)
 
-        self.sample_y_mean = np.mean(y, axis=0)
-        self.sample_y_std = np.mean(y, axis = 0)
-        self.sample_X_mean = np.mean(X, axis=0)
-        self.sample_X_std = np.std(X, axis=0)
+            self.sample_y_std = np.std(y, axis=0)
+            self.sample_X_std = np.std(X, axis=0)
 
         return (y - self.sample_y_mean)/self.sample_y_std, (X - self.sample_X_mean)/self.sample_X_std
 
@@ -101,8 +103,6 @@ class OLS(LinearModel):
             y, X = super().standardize_variables(y, X)
 
         self.beta_hat = np.matmul(np.linalg.inv(np.matmul(X.T, X)), np.matmul(X.T, y))
-
-
 
     def fit_by_gradient_descent(self, y, X, learning_rate=0.00001, iter=100):
         """
@@ -137,7 +137,6 @@ class OLS(LinearModel):
 
         if self.standardize:
             y, X = super().standardize_variables(y, X)
-
         beta_hat = np.random.rand(self.p, 1)
         
         for _ in range(iter):
@@ -149,6 +148,77 @@ class OLS(LinearModel):
                 # Note that beta_hat[j] that we add back to the residual
                 # is the updated beta_hat[j]. Thus, the the residual changes with each coordinate update
         
+        self.beta_hat = beta_hat
+
+class GradientBoostedOLS(LinearModel):
+    def __init__(self, standardize=True):
+        self.standardize = standardize
+    
+    def fit(self, 
+            y, 
+            X, 
+            validation_fraction=0.2, 
+            learning_rate=0.1, 
+            tol=0.01,
+            num_iter=10000, 
+            max_num_iter_no_improvement=20):
+        """
+        y - N x 1 output vector
+        X - N x p input matrix
+        validation_fraction - fraction of training set used for early stopping
+        learning_rate - eta in the equation: beta_hat = beta_hat - eta * gradient
+        tol - required improvement in mse
+        num_iter - number of iterations
+        num_iter_no_improvement - number of iterations without improvement > tol before early stopping
+
+        Fits coefficients to y, X and stores in self.beta_hat using boosted OLS
+        """
+        self.N, self.p = X.shape
+        
+        split_index = int((1-validation_fraction)*self.N)
+        
+        X_train = X[:split_index]
+        X_validation = X[split_index:]
+        
+        y_train = y[:split_index]
+        y_validation = y[split_index:]
+        
+        if self.standardize:
+            y_train, X_train = super().standardize_variables(y_train, X_train)
+            y_validation, X_validation = super().standardize_variables(y_validation, X_validation, set_params=False)
+        
+        beta_hat = np.zeros((self.p, 1))
+        
+        y_train_prediction = np.zeros(y_train.shape)
+        y_validation_prediction = np.zeros(y_validation.shape)
+        residual = y_train - y_train_prediction
+        min_validation_mse = np.var(y_validation - y_validation_prediction)
+        
+        num_iter_no_improvement = 0
+        for _ in range(num_iter):
+            if num_iter_no_improvement >= max_num_iter_no_improvement:
+                print(f"Early stopping at iteration: {_}")
+                break
+            # correlation coefficient = beta hat because y and X are standardized
+            correlation = np.mean(X_train*residual, axis=0)/np.std(residual)
+            max_correlation_idx = np.argmax(np.abs(correlation))
+            parameter_update = learning_rate*correlation[max_correlation_idx]
+            
+            # add new univariate regressor on residual against chosen X variable
+            beta_hat[max_correlation_idx] += parameter_update
+            
+            # update predictions and residual
+            y_train_prediction += parameter_update * X_train[:, [max_correlation_idx]]
+            y_validation_prediction +=  parameter_update * X_validation[:, [max_correlation_idx]]
+            residual = y_train - y_train_prediction
+            validation_mse = np.var(y_validation - y_validation_prediction)
+            
+            if validation_mse < min_validation_mse - 0:
+                num_iter_no_improvement = 0
+                min_validation_mse = validation_mse
+            else:
+                num_iter_no_improvement += 1
+
         self.beta_hat = beta_hat
 
 class Ridge(LinearModel):
@@ -187,7 +257,6 @@ class Ridge(LinearModel):
             y, X = super().standardize_variables(y, X)
 
         beta_hat = np.random.rand(self.p, 1)
-        
         for _ in range(iter):
             beta_hat = beta_hat + 2*learning_rate*(np.matmul(X.T, y - np.matmul(X, beta_hat)) - reg_param*beta_hat)
 
