@@ -1,5 +1,5 @@
 import numpy as np
-import pandas as pd
+from residual_utils import PseudoResidual, Residual
 from utils import soft_thresholding
 
 class LinearModel:
@@ -29,23 +29,19 @@ class LinearModel:
         """
 
         return self.beta_hat
-
-    def mse(self, y, X):
+    
+    def error(self, y, X, error_function='mse'):
         """
         y - M x 1 output vector
         X - M x p input matrix
         
         Assuming self.beta_hat has been fit on training data, 
         predict a new y vector given a new input matrix X using y = X * self.beta_hat.
-        Then, compute the mean squared error (1/M)*||y - X*self.beta_hat||^2
-        
-        Return the mean squared error.
+        Then return the error
         """
-
-        M, p = X.shape
         
-        return (1/M)*np.sum((y - self.predict(X))**2)
-
+        return Residual.keyword_to_function[error_function](y, self.predict(X))
+    
     def r_squared(self, y, X):
         """
         y - M x 1 output vector
@@ -56,6 +52,7 @@ class LinearModel:
         Then compute and return the R squared of the linear regression
         """
         return (1 - np.var(y - self.predict(X))/np.var(y))
+    
     def adjusted_r_squared(self, y, X):
         """
         y - M x 1 output vector
@@ -67,6 +64,7 @@ class LinearModel:
         """
         M, p = X.shape
         return (1 - (M-1)/(M-p) * np.var(y - self.predict(X))/np.var(y))
+    
     def standardize_variables(self, y, X, set_params=True):
         """
         y - N x 1 output vector
@@ -161,7 +159,8 @@ class GradientBoostedOLS(LinearModel):
             learning_rate=0.1, 
             tol=0.01,
             num_iter=10000, 
-            max_num_iter_no_improvement=20):
+            max_num_iter_no_improvement=20, 
+            error_function='mse'):
         """
         y - N x 1 output vector
         X - N x p input matrix
@@ -173,6 +172,9 @@ class GradientBoostedOLS(LinearModel):
 
         Fits coefficients to y, X and stores in self.beta_hat using boosted OLS
         """
+        pseudo_residual_function = PseudoResidual.keyword_to_function[error_function]
+        residual_function = Residual.keyword_to_function[error_function]
+        
         self.N, self.p = X.shape
         
         split_index = int((1-validation_fraction)*self.N)
@@ -191,8 +193,9 @@ class GradientBoostedOLS(LinearModel):
         
         y_train_prediction = np.zeros(y_train.shape)
         y_validation_prediction = np.zeros(y_validation.shape)
-        residual = y_train - y_train_prediction
-        min_validation_mse = np.var(y_validation - y_validation_prediction)
+        
+        pseudo_residual = pseudo_residual_function(y_train, y_train_prediction)
+        min_validation_residual = residual_function(y_validation, y_validation_prediction)
         
         num_iter_no_improvement = 0
         for _ in range(num_iter):
@@ -200,7 +203,7 @@ class GradientBoostedOLS(LinearModel):
                 print(f"Early stopping at iteration: {_}")
                 break
             # correlation coefficient = beta hat because y and X are standardized
-            correlation = np.mean(X_train*residual, axis=0)/np.std(residual)
+            correlation = np.mean(X_train*pseudo_residual, axis=0)/np.std(pseudo_residual)
             max_correlation_idx = np.argmax(np.abs(correlation))
             parameter_update = learning_rate*correlation[max_correlation_idx]
             
@@ -209,13 +212,14 @@ class GradientBoostedOLS(LinearModel):
             
             # update predictions and residual
             y_train_prediction += parameter_update * X_train[:, [max_correlation_idx]]
-            y_validation_prediction +=  parameter_update * X_validation[:, [max_correlation_idx]]
-            residual = y_train - y_train_prediction
-            validation_mse = np.var(y_validation - y_validation_prediction)
+            y_validation_prediction += parameter_update * X_validation[:, [max_correlation_idx]]
             
-            if validation_mse < min_validation_mse - 0:
+            pseudo_residual = pseudo_residual_function(y_train, y_train_prediction)
+            validation_residual = residual_function(y_validation, y_validation_prediction)
+            
+            if validation_residual < min_validation_residual - tol:
                 num_iter_no_improvement = 0
-                min_validation_mse = validation_mse
+                min_validation_residual = validation_residual
             else:
                 num_iter_no_improvement += 1
 
