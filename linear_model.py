@@ -22,7 +22,7 @@ class LinearModel:
         
         else:
             return np.matmul(X, self.beta_hat)
-
+        
     def get_params(self):
         """
         return coefficient vector self.beta_hat
@@ -176,6 +176,10 @@ class GradientBoostedOLS(LinearModel):
         residual_function = Residual.keyword_to_function[error_function]
         
         self.N, self.p = X.shape
+        
+        y_X = np.hstack((y, X))
+        np.random.shuffle(y_X)
+        y, X = y_X[:, [0]], y_X[:, 1:]
         
         split_index = int((1-validation_fraction)*self.N)
         
