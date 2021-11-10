@@ -1,6 +1,6 @@
 # linear-model
 
-We implement LASSO, OLS, and ridge regression using (cyclical) coordinate descent, gradient descent, closed form equations, and gradient boosting. The L1 regularization parameter is chosen through leave-one-out cross-validation.
+We implement LASSO, OLS, ridge, and LAD regression using (cyclical) coordinate descent, gradient descent, closed form equations, and gradient boosting. The L1 regularization parameter is chosen through leave-one-out cross-validation.
 
 ## Resources
 * [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
