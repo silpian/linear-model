@@ -12,7 +12,11 @@ class PseudoResidual:
     @staticmethod
     def log_loss_pseudo_residual(y, y_hat):
         def sigmoid(x):
-            return 1/(1 + np.expz(-x))
+            if x >= 0:
+                return 1/(1 + np.exp(-x))
+            else:
+                temp = np.exp(x)
+                return temp/(1 + temp)
         
         return y - sigmoid(y_hat)
     
